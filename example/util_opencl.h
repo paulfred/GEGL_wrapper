@@ -8,7 +8,8 @@
 extern "C" {
 #endif
 
-void RunProgram(GEGLclass*, float*, float*);
+void RunInvertGamma(GEGLclass*, float*, float*);
+void RunSepia(GEGLclass*, float*, float*, float);
 
 #ifdef __cplusplus
 }

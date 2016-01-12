@@ -88,7 +88,7 @@ string getSource(const string& fname) {
 	return buffer.str();
 }
 
-void RunProgram(GEGLclass* ggObj, float* in, float* out) {
+void RunSepia(GEGLclass* ggObj, float* in, float* out, float scale) {
 
 	cl_int err = CL_SUCCESS;
 
@@ -118,7 +118,7 @@ void RunProgram(GEGLclass* ggObj, float* in, float* out) {
 		vector<Device> devices = context.getInfo<CL_CONTEXT_DEVICES>();
 		cout << "Found " << devices.size() << " devices\n";
 
-		string src = getSource("GEGL_invertgamma.cl");
+		string src = getSource("GEGL_sepia.cl");
 		Program::Sources source = Program::Sources(1, std::make_pair(src.c_str(), src.length()));
 		Program prg(context, source);
 		try {
@@ -145,17 +145,24 @@ void RunProgram(GEGLclass* ggObj, float* in, float* out) {
 		::size_t bufsize = get_pixelcount(ggObj) * sizeof(float) * 4;
 		Buffer inbuf(context, CL_MEM_READ_ONLY, bufsize);
 		Buffer outbuf(context, CL_MEM_WRITE_ONLY, bufsize);
+		Buffer params(context, CL_MEM_READ_ONLY, sizeof(float) * 2);
 		Buffer scratch(context, CL_MEM_READ_WRITE, 32);
 
-		int* scratch_buf = (int*)malloc(32);
-		memset(scratch_buf, 0, 8);
+		float* params_buf = (float*)malloc(8);
+		memset(params_buf, 0, 8);
+		params_buf[0] = scale;
 
-		queue.enqueueWriteBuffer(inbuf, CL_TRUE, 0, bufsize, in, NULL, &write_in);
-		queue.enqueueWriteBuffer(scratch, CL_TRUE, 0, 32, scratch_buf);
+		int* scratch_buf = (int*)malloc(32);
+		memset(scratch_buf, 0, 32);
+
+		queue.enqueueWriteBuffer(inbuf, CL_FALSE, 0, bufsize, in, NULL, &write_in);
+		queue.enqueueWriteBuffer(params, CL_FALSE, 0, 8, params_buf);
+		queue.enqueueWriteBuffer(scratch, CL_FALSE, 0, 32, scratch_buf);
 
 		kernel.setArg(0, outbuf);
 		kernel.setArg(1, inbuf);
-		kernel.setArg(2, scratch);
+		kernel.setArg(2, params);
+		kernel.setArg(3, scratch);
 
 		queue.enqueueNDRangeKernel(
 		  kernel, 

@@ -26,7 +26,7 @@ GEGL_invertgamma: GEGL_invertgamma.o $(DEPS)
 	g++ -c -g $(CFLAGS) $< -o $@
 
 check: clean GEGL_invertgamma
-	./GEGL_invertgamma Y7zRVPd.jpg test.jpg
+	./GEGL_invertgamma rJwavF8.jpg test.jpg
 
 clean:
 	rm -f *.o GEGL_invertgamma

@@ -17,7 +17,8 @@ int main(int argc, char* argv[]) {
 	float *in, *out;
 	get_in_out(c, &in, &out);
 
-	RunProgram(c, in, out);
+	// RunInvertGamma(c, in, out);
+	RunSepia(c, in, out, 1.0);
 	/*
 	long samples = get_pixelcount(c);
 	while (samples--) {
