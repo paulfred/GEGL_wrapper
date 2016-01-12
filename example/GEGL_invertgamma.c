@@ -4,16 +4,21 @@
 #include <stdio.h>
 #include <time.h>
 
+#include "util_opencl.h"
+
 int main(int argc, char* argv[]) {
 	clock_t start, end;
  	double cpu_time_used;
 	struct GEGLclass *c = newGEGLclass(argc, argv);
 	if (c == NULL)
 		return 0;
-		
+
 	set_colorformat(c, "R'G'B'A float");
 	float *in, *out;
 	get_in_out(c, &in, &out);
+
+	RunProgram(c, in, out);
+	/*
 	long samples = get_pixelcount(c);
 	while (samples--) {
       out[0] = 1.0 - in[0];
@@ -24,7 +29,7 @@ int main(int argc, char* argv[]) {
       in += 4;
       out+= 4;
     }
-  	
+  	*/
 	set_output(c);
 	deleteGEGLclass(c);
 

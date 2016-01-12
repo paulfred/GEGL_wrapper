@@ -1,0 +1,26 @@
+{
+    "folders":
+    [
+        {
+            "path": ".",
+            "file_exclude_patterns": [".*", "env.sh", "*.sublime-*"],
+            "folder_exclude_patterns": [
+                "node_modules",
+                ".tmp",
+                "cache",
+                "uploaded"
+            ]
+        }
+    ],
+    "settings":
+    {
+    },
+    "build_systems":
+    [
+        {
+            "name": "List",
+            "cmd": ["ls"]
+        }
+    ]
+}
+
