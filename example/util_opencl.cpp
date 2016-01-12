@@ -75,8 +75,17 @@ public:
 
 ProgramCache cache;
 
-Program::Sources getSource(const string& fname) {
-	return cache.load(fname);
+string getSource(const string& fname) {
+	std::ifstream infile(fname.c_str());
+	if (!infile) {
+		throw Error(1, "Source file not found");
+	}
+
+	std::stringstream buffer;
+	buffer << infile.rdbuf();
+	infile.close();
+
+	return buffer.str();
 }
 
 void RunProgram(GEGLclass* ggObj, float* in, float* out) {
@@ -109,7 +118,8 @@ void RunProgram(GEGLclass* ggObj, float* in, float* out) {
 		vector<Device> devices = context.getInfo<CL_CONTEXT_DEVICES>();
 		cout << "Found " << devices.size() << " devices\n";
 
-		Program::Sources source = getSource("GEGL_invertgamma.cl");
+		string src = getSource("GEGL_invertgamma.cl");
+		Program::Sources source = Program::Sources(1, std::make_pair(src.c_str(), src.length()));
 		Program prg(context, source);
 		try {
 			prg.build(devices);
