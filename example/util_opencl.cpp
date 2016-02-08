@@ -6,6 +6,9 @@
 #include <sstream>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
+#include <algorithm>
+#include <cassert>
 
 #include "util_opencl.h"
 
@@ -17,44 +20,63 @@ using std::cerr;
 
 const bool debug = false;
 
-const char* inverse_alpha = "\
-__kernel void myfilter(	__global float4* out, \
-						__global const float4* in, \
-						__global int* ids) \
-{ \
-	int id = get_global_id(0); \
-	if (id > ids[0]) ids[0] = id; \
- \
-	out[id].xyz = 1.0 - in[id].xyz; \
-	out[id].w = in[id].w; \
-}";
-
-string safe(char s) {
+string safe_echo(char s) {
 	switch(s) {
 		case '\t': return "\\t";
 		case '\r': return "\\r";
 		case '\n': return "\\n";
 		default: break;
 	}
-	string r(1, s);
-	return r;
+	return string(1,s);
 }
 
-Program::Sources getSource(const string& fname) {
-	/*
-	std::ifstream infile(fname.c_str());
-	if (!infile) {
-		throw Error(1, "Source file not found");
-	}
-	std::stringstream buffer;
-	buffer << infile.rdbuf();
-	infile.close();
+double time_in_ms(Event& ev) {
+	return (ev.getProfilingInfo<CL_PROFILING_COMMAND_END>()
+	 - ev.getProfilingInfo<CL_PROFILING_COMMAND_START>())/1000000.0;
+}
 
-	string src = buffer.str();
-	cerr << "Loaded program (" << src.length() << ")\n";
-	return Program::Sources(1, std::make_pair(src.c_str(), src.length()));
-	*/
-	return Program::Sources(1, std::make_pair(inverse_alpha, strlen(inverse_alpha)));
+class ProgramCache {
+	std::vector<string> _fnames;
+	std::vector<string> _sources;
+
+public:
+	const string& update(const string& fname, const string& src) {
+		assert(_fnames.size() == _sources.size());
+		std::vector<string>::iterator it;
+		it = std::find(_fnames.begin(), _fnames.end(), fname);
+		if (it == _fnames.end()) {
+			_fnames.push_back(fname);
+			_sources.push_back(src);
+			return src;
+		}
+		return *(_sources.begin() + (it - _fnames.begin()));
+	}
+
+	Program::Sources load(const string& fname) {
+		std::ifstream infile(fname.c_str());
+		if (!infile) {
+			throw Error(1, "Source file not found");
+		}
+
+		std::stringstream buffer;
+		buffer << infile.rdbuf();
+		infile.close();
+
+		string src = buffer.str();
+		
+		cerr << "Loaded program (" << src.length() << ")\n";
+
+		// this returns a string that goes out of scope
+		//return Program::Sources(1, std::make_pair(src.c_str(), src.length()));
+		const string& csrc = update(fname, src);
+		return Program::Sources(1, std::make_pair(csrc.c_str(), csrc.length()));
+	}
+};
+
+ProgramCache cache;
+
+Program::Sources getSource(const string& fname) {
+	return cache.load(fname);
 }
 
 void RunProgram(GEGLclass* ggObj, float* in, float* out) {
@@ -107,6 +129,8 @@ void RunProgram(GEGLclass* ggObj, float* in, float* out) {
 
 		CommandQueue queue(context, devices[0], CL_QUEUE_PROFILING_ENABLE, &err);
 		Event event;
+		Event write_in;
+		Event read_out;
 
 		::size_t bufsize = get_pixelcount(ggObj) * sizeof(float) * 4;
 		Buffer inbuf(context, CL_MEM_READ_ONLY, bufsize);
@@ -116,7 +140,7 @@ void RunProgram(GEGLclass* ggObj, float* in, float* out) {
 		int* scratch_buf = (int*)malloc(32);
 		memset(scratch_buf, 0, 8);
 
-		queue.enqueueWriteBuffer(inbuf, CL_TRUE, 0, bufsize, in);
+		queue.enqueueWriteBuffer(inbuf, CL_TRUE, 0, bufsize, in, NULL, &write_in);
 		queue.enqueueWriteBuffer(scratch, CL_TRUE, 0, 32, scratch_buf);
 
 		kernel.setArg(0, outbuf);
@@ -132,10 +156,14 @@ void RunProgram(GEGLclass* ggObj, float* in, float* out) {
 		  &event);
 
 		event.wait();
-
 		queue.enqueueReadBuffer(scratch, CL_TRUE, 0, 8, scratch_buf);
-		queue.enqueueReadBuffer(outbuf, CL_TRUE, 0, bufsize, out);
+		queue.enqueueReadBuffer(outbuf, CL_TRUE, 0, bufsize, out, NULL, &read_out);
+
 		cerr << "max work item " << scratch_buf[0] << "\n";
+		cerr << std::setprecision(3) << std::fixed
+			<< "Kernel execution took " << time_in_ms(event) << "ms\n"
+			<< "Writing input took " << time_in_ms(write_in) << "ms\n"
+			<< "Reading output took " << time_in_ms(read_out) << "ms\n";
 	}
 	#ifdef __CL_ENABLE_EXCEPTIONS
 	catch (cl::Error err) {
